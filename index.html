@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>J.A.R.V.I.S — CORE V0.1</title>
+
+<!-- PWA Support -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00e5ff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JARVIS">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
 :root {
@@ -450,20 +459,30 @@ function activateJarvis(key, webhook) {
 
 // ── BMS POLLER — checks n8n every 10 seconds for seat alerts ──
 function startBMSPoller() {
-  const webhookBase = (window._webhookUrl || localStorage.getItem("jarvis_webhook_url") || "").replace("/webhook/jarvis", "");
-  if (!webhookBase) return;
+  // Poll Telegram bot for new messages every 10 seconds
+  // When a message contains "Seats Open" -> show red alert + speak!
+  const BOT_TOKEN = "8906357094:AAF3PVtE98mkvHwH_2-hiC0evI0VrTiQrs8";
+  let lastUpdateId = 0;
 
   setInterval(async () => {
     try {
-      const res = await fetch(webhookBase + "/webhook/bms-poll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "poll" })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.type === "bms_alert" && data.message) {
-          showBMSAlert(data.message);
+      const url = `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&limit=10&timeout=0`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.ok || !data.result.length) return;
+
+      for (const update of data.result) {
+        lastUpdateId = update.update_id;
+        const text = update.message?.text || "";
+        // Check if it is a BMS seat alert
+        if (
+          text.includes("Seats Open") ||
+          text.includes("seats open") ||
+          text.includes("Row ") ||
+          text.includes("🎉 Seats")
+        ) {
+          showBMSAlert(text);
         }
       }
     } catch(e) {}
@@ -773,6 +792,16 @@ let alertIdx = 0;
 function tickAlerts() {
   const a = alertPool[alertIdx++ % alertPool.length];
   addAlert(a.cls, a.txt);
+}
+</script>
+<script>
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered'))
+      .catch(err => console.log('SW error:', err));
+  });
 }
 </script>
 </body>
