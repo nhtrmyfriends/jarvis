@@ -1,31 +1,39 @@
-const CACHE_NAME = 'jarvis-v1';
-const ASSETS = [
-  '/jarvis/',
-  '/jarvis/index.html',
-  '/jarvis/manifest.json'
-];
+// JARVIS Service Worker — Auto-updating
+const CACHE_VERSION = 'jarvis-' + Date.now();
+const CACHE_NAME = CACHE_VERSION;
 
-// Install — cache assets
+// Install — skip waiting to activate immediately
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
-  );
   self.skipWaiting();
+  console.log('SW: New version installing...');
 });
 
-// Activate — clean old caches
+// Activate — delete ALL old caches immediately
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.map(key => {
+          console.log('SW: Deleting old cache:', key);
+          return caches.delete(key);
+        })
+      );
+    }).then(() => {
+      console.log('SW: All old caches cleared!');
+      return self.clients.claim();
+    })
   );
-  self.clients.claim();
 });
 
-// Fetch — serve from cache, fall back to network
+// Fetch — ALWAYS get fresh from network, never from cache
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
-  );
+  // Only handle same-origin requests
+  if (event.request.url.startsWith(self.location.origin)) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // If network fails, try cache as fallback
+        return caches.match(event.request);
+      })
+    );
+  }
 });
