@@ -445,6 +445,29 @@ function activateJarvis(key, webhook) {
   setInterval(tickUptime, 1000);
   setInterval(tickStats, 3000);
   setInterval(tickAlerts, 8000);
+  startBMSPoller();
+}
+
+// ── BMS POLLER — checks n8n every 10 seconds for seat alerts ──
+function startBMSPoller() {
+  const webhookBase = (window._webhookUrl || localStorage.getItem("jarvis_webhook_url") || "").replace("/webhook/jarvis", "");
+  if (!webhookBase) return;
+
+  setInterval(async () => {
+    try {
+      const res = await fetch(webhookBase + "/webhook/bms-poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "poll" })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.type === "bms_alert" && data.message) {
+          showBMSAlert(data.message);
+        }
+      }
+    } catch(e) {}
+  }, 10000);
 }
 
 // ── ROUTE TO AGENT ──
@@ -523,7 +546,51 @@ async function quickCmd(text) {
   processInput(text);
 }
 
-async function processInput(text) {
+// ── BMS ALERT SYSTEM ──
+function showBMSAlert(message) {
+  const orb = document.getElementById("orb");
+
+  // Flash orb red
+  orb.style.background = "radial-gradient(circle at 38% 33%, #ffaaaa 0%, #ff3d6b 28%, #880022 62%, #220008 100%)";
+  orb.style.boxShadow = "0 0 50px rgba(255,61,107,.9), 0 0 90px rgba(255,61,107,.5)";
+
+  // Show flashing banner
+  let banner = document.getElementById("bmsBanner");
+  if (banner) banner.remove();
+  banner = document.createElement("div");
+  banner.id = "bmsBanner";
+  banner.innerHTML = "🚨 BMS SEAT ALERT! 🚨<br><span style='font-size:11px;font-weight:400;font-family:monospace;line-height:1.6'>" + message.replace(/\n/g, "<br>") + "</span>";
+  banner.onclick = () => banner.remove();
+  document.body.appendChild(banner);
+
+  // Add to chat
+  addMsg("agent", "🚨 " + message, "BMS MONITOR");
+  addAlert("warn", "BMS: Seats found!");
+
+  // Speak it out loud!
+  setOrbState("BMS ALERT!", "speaking");
+  setWave("active", true);
+  const clean = message.replace(/https?:\/\/\S+/g, "").replace(/[\n\r]/g, ". ");
+  speakText("Alert! Seats are now available! " + clean, "BMS");
+
+  // Reset after 15 seconds
+  setTimeout(() => {
+    orb.style.background = "";
+    orb.style.boxShadow = "";
+    setOrbState("STANDBY", "");
+    setWave("idle", false);
+    const b = document.getElementById("bmsBanner");
+    if (b) b.remove();
+  }, 15000);
+}
+
+async function processInput(text, isBMSAlert) {
+  // Check if BMS alert
+  if (isBMSAlert || text.includes("Seats Open") || text.includes("seats open") || text.includes("bms_alert")) {
+    showBMSAlert(text);
+    return;
+  }
+
   addMsg("user", text);
   setWave("active", false);
   setOrbState("ANALYZING...", "thinking");
