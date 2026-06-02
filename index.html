@@ -185,7 +185,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="setup-box">
     <div id="loginScreen">
       <div class="setup-title">⚡ JARVIS LOGIN</div>
-      <div class="setup-sub">Enter your credentials to activate JARVIS --.</div>
+      <div class="setup-sub">Enter your credentials to activate JARVIS.</div>
       <input class="setup-input" id="loginUser" type="text" placeholder="Username" autocomplete="off" />
       <input class="setup-input" id="loginPass" type="password" placeholder="Password" style="margin-top:8px;" autocomplete="off" />
       <div id="loginError" style="font-size:11px;color:#ff3d6b;margin:6px 0;display:none;">❌ Invalid credentials. Try again.</div>
@@ -233,7 +233,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <div style="font-size:9px;color:var(--dim);font-family:'Orbitron',sans-serif;">CORE V0.1</div>
-    <button onclick="openSettings()" style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer;font-family:'Orbitron',sans-serif;">⚙ SETTINGS</button>
   </div>
 </div>
 
@@ -957,5 +956,17 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<!-- FLOATING SETTINGS BUTTON -->
+<button onclick="openSettings()" style="
+  position:fixed; bottom:20px; right:16px;
+  width:48px; height:48px; border-radius:50%;
+  background:rgba(0,229,255,.15);
+  border:1px solid var(--cyan);
+  color:var(--cyan); font-size:20px;
+  cursor:pointer; z-index:100;
+  box-shadow:0 0 12px rgba(0,229,255,.3);
+  display:flex; align-items:center; justify-content:center;
+" title="Settings">⚙</button>
+
 </body>
 </html>
