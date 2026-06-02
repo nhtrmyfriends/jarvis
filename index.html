@@ -508,11 +508,14 @@ function startBMSPoller() {
 }
 
 function getBridgeUrl() {
-  // Check localStorage first (user configured)
+  // If running on localhost -> always use local bridge
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return "http://localhost:8766";
+  }
+  // If running on GitHub Pages (mobile) -> use saved Cloudflare URL
   const saved = localStorage.getItem("jarvis_bridge_url");
   if (saved) return saved;
-  // Default to localhost for laptop
-  return "http://localhost:8766";
+  return "http://localhost:8766"; // fallback
 }
 
 function connectWebSocket() {
