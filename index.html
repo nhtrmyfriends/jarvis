@@ -196,7 +196,9 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div class="setup-sub">Enter your keys once — saved forever in this browser!</div>
       <div style="font-size:10px;color:#2a5a72;margin-bottom:8px;">These are saved locally — never shared with anyone.</div>
       <input class="setup-input" id="inputGroqKey" type="password" placeholder="Groq API Key (gsk_...)" autocomplete="off" />
-      <input class="setup-input" id="inputWebhook" type="text" placeholder="ngrok webhook URL (https://xxxx.ngrok-free.app/webhook/jarvis)" style="margin-top:8px;font-size:11px;" autocomplete="off" />
+      <input class="setup-input" id="inputWebhook" type="text" placeholder="n8n webhook URL (https://xxxx.ngrok-free.app/webhook/jarvis)" style="margin-top:8px;font-size:11px;" autocomplete="off" />
+      <input class="setup-input" id="inputBridge" type="text" placeholder="Bridge URL — laptop: http://localhost:8766 | mobile: https://xxxx.trycloudflare.com" style="margin-top:8px;font-size:10px;" autocomplete="off" />
+      <div style="font-size:10px;color:#2a5a72;margin:4px 0 8px;">📱 Mobile: paste your Cloudflare URL above</div>
       <div id="keysError" style="font-size:11px;color:#ff3d6b;margin:6px 0;display:none;">❌ Please enter Groq API key!</div>
       <button class="setup-btn" onclick="saveKeys()" style="margin-top:8px;">💾 SAVE & ACTIVATE</button>
     </div>
@@ -297,6 +299,22 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div class="act-btn g" onclick="quickCmd('Write a short motivational message for my team')">BRIEF</div>
       <div class="act-btn a" onclick="quickCmd('What are 3 trending topics in AI today?')">RESEARCH</div>
       <div class="act-btn r" onclick="quickCmd('Check for any security issues I should know about')">SCAN</div>
+    </div>
+
+    <!-- AGENT CONTROL PANEL -->
+    <div class="ctrl-panel">
+      <div class="ctrl-title">// AGENT CONTROL</div>
+      <div class="ctrl-row">
+        <div class="ctrl-btn start" id="bmsBtn" onclick="controlProcess('start','bms')">▶ START BMS</div>
+        <div class="ctrl-btn stop"  onclick="controlProcess('stop','bms')">■ STOP BMS</div>
+        <div class="ctrl-btn start" id="priceBtn" onclick="controlProcess('start','price')">▶ PRICE MONITOR</div>
+        <div class="ctrl-btn stop"  onclick="controlProcess('stop','price')">■ STOP PRICE</div>
+        <div class="ctrl-btn stop"  onclick="controlProcess('stop','all')">⬛ STOP ALL</div>
+      </div>
+      <div class="proc-status" id="procStatus">
+        <span class="proc-item"><span class="proc-dot stopped" id="bmsDot"></span><span style="color:var(--dim)" id="bmsStatus">BMS: offline</span></span>
+        <span class="proc-item"><span class="proc-dot stopped" id="priceDot"></span><span style="color:var(--dim)" id="priceStatus">PRICE: offline</span></span>
+      </div>
     </div>
   </div>
 
@@ -431,6 +449,7 @@ function checkLogin() {
 function saveKeys() {
   const key = document.getElementById("inputGroqKey").value.trim();
   const webhook = document.getElementById("inputWebhook").value.trim();
+  const bridge = document.getElementById("inputBridge").value.trim();
   const errEl = document.getElementById("keysError");
 
   if (!key || key.length < 10) {
@@ -441,6 +460,7 @@ function saveKeys() {
   // Save to localStorage forever
   localStorage.setItem("jarvis_groq_key", key);
   localStorage.setItem("jarvis_webhook_url", webhook);
+  if (bridge) localStorage.setItem("jarvis_bridge_url", bridge);
 
   activateJarvis(key, webhook);
 }
@@ -459,34 +479,90 @@ function activateJarvis(key, webhook) {
 
 // ── BMS POLLER — checks n8n every 10 seconds for seat alerts ──
 function startBMSPoller() {
-  // Poll Telegram bot for new messages every 10 seconds
-  // When a message contains "Seats Open" -> show red alert + speak!
-  const BOT_TOKEN = "8906357094:AAF3PVtE98mkvHwH_2-hiC0evI0VrTiQrs8";
-  let lastUpdateId = 0;
+  // Connect to local JARVIS bridge server via WebSocket
+  // BMS script sends alerts here → instantly pushed to JARVIS!
+  connectWebSocket();
+}
+
+function getBridgeUrl() {
+  // Check localStorage first (user configured)
+  const saved = localStorage.getItem("jarvis_bridge_url");
+  if (saved) return saved;
+  // Default to localhost for laptop
+  return "http://localhost:8766";
+}
+
+function connectWebSocket() {
+  // Use HTTP polling for remote bridge, WebSocket for local
+  const bridgeUrl = getBridgeUrl();
+  const isLocal = bridgeUrl.includes("localhost");
+
+  if (isLocal) {
+    // Local laptop — use WebSocket
+    const ws = new WebSocket("ws://localhost:8765");
+
+  ws.onopen = () => {
+    console.log("JARVIS bridge connected!");
+    addAlert("ok", "BMS bridge connected ✓");
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === "bms_alert" || data.type === "price_alert") {
+        const alertMsg = data.message || data.command || "";
+        if (alertMsg) showBMSAlert(alertMsg);
+      } else if (data.type === "process_result") {
+        addMsg("sys", "[ CTRL ] " + data.message);
+        updateProcStatus(data.processes || {});
+      } else if (data.type === "status_update") {
+        updateProcStatus(data.processes || {});
+      }
+    } catch(e) {
+      console.log("WS error:", e);
+    }
+  };
+
+  ws.onclose = () => {
+    // Reconnect after 5 seconds if connection drops
+    console.log("JARVIS bridge disconnected — reconnecting in 5s...");
+    addAlert("warn", "BMS bridge reconnecting...");
+    setTimeout(connectWebSocket, 5000);
+  };
+
+    ws.onerror = () => {
+      console.log("JARVIS bridge not running — start jarvis_server.py!");
+    };
+  } else {
+    // Remote mobile — use HTTP polling via Cloudflare
+    startRemotePoller(bridgeUrl);
+  }
+}
+
+function startRemotePoller(bridgeUrl) {
+  addAlert("ok", "Mobile bridge connecting...");
+  let lastCheck = Date.now();
 
   setInterval(async () => {
     try {
-      const url = `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&limit=10&timeout=0`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.ok || !data.result.length) return;
-
-      for (const update of data.result) {
-        lastUpdateId = update.update_id;
-        const text = update.message?.text || "";
-        // Check if it is a BMS seat alert
-        if (
-          text.includes("Seats Open") ||
-          text.includes("seats open") ||
-          text.includes("Row ") ||
-          text.includes("🎉 Seats")
-        ) {
-          showBMSAlert(text);
+      const res = await fetch(bridgeUrl + "/poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "poll", since: lastCheck })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.type === "bms_alert") {
+          const msg = data.message || data.command || "";
+          if (msg) {
+            showBMSAlert(msg);
+            lastCheck = Date.now();
+          }
         }
       }
     } catch(e) {}
-  }, 10000);
+  }, 5000);
+  addAlert("ok", "Mobile bridge connected ✓");
 }
 
 // ── ROUTE TO AGENT ──
@@ -563,6 +639,31 @@ async function sendMsg() {
 async function quickCmd(text) {
   if (!groqKey) { alert("Please enter your Groq API key first."); return; }
   processInput(text);
+}
+
+// ── PROCESS CONTROL ──
+function controlProcess(action, name) {
+  const wsUrl = "http://localhost:8766";
+  fetch(wsUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: action + "_process", name: name })
+  })
+  .then(() => addAlert("ok", `${name.toUpperCase()} ${action} command sent`))
+  .catch(() => addAlert("warn", "JARVIS server not running!"));
+}
+
+function updateProcStatus(processes) {
+  const bmsRunning = processes["BMS"] === "running";
+  const priceRunning = processes["Price Monitor"] === "running";
+
+  document.getElementById("bmsDot").className = "proc-dot " + (bmsRunning ? "running" : "stopped");
+  document.getElementById("bmsStatus").textContent = "BMS: " + (bmsRunning ? "RUNNING" : "offline");
+  document.getElementById("bmsStatus").style.color = bmsRunning ? "var(--green)" : "var(--dim)";
+
+  document.getElementById("priceDot").className = "proc-dot " + (priceRunning ? "running" : "stopped");
+  document.getElementById("priceStatus").textContent = "PRICE: " + (priceRunning ? "RUNNING" : "offline");
+  document.getElementById("priceStatus").style.color = priceRunning ? "var(--green)" : "var(--dim)";
 }
 
 // ── BMS ALERT SYSTEM ──
