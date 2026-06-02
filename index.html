@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>J.A.R.V.I.S — CORE V0.2</title>
+<title>J.A.R.V.I.S — CORE V0.1</title>
 
 <!-- PWA Support -->
 <link rel="manifest" href="manifest.json">
@@ -185,7 +185,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="setup-box">
     <div id="loginScreen">
       <div class="setup-title">⚡ JARVIS LOGIN</div>
-      <div class="setup-sub">Enter your credentials to activate JARVIS.</div>
+      <div class="setup-sub">Enter your credentials to activate JARVIS --.</div>
       <input class="setup-input" id="loginUser" type="text" placeholder="Username" autocomplete="off" />
       <input class="setup-input" id="loginPass" type="password" placeholder="Password" style="margin-top:8px;" autocomplete="off" />
       <div id="loginError" style="font-size:11px;color:#ff3d6b;margin:6px 0;display:none;">❌ Invalid credentials. Try again.</div>
@@ -205,6 +205,24 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
 </div>
 
+<!-- SETTINGS OVERLAY -->
+<div id="settingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(2,13,20,.97);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div class="setup-box">
+    <div class="setup-title">⚙ JARVIS SETTINGS</div>
+    <div class="setup-sub">Update your keys and URLs anytime.</div>
+    <div style="font-size:10px;color:var(--dim);margin-bottom:6px;">GROQ API KEY</div>
+    <input class="setup-input" id="settGroqKey" type="password" placeholder="gsk_..." autocomplete="off" />
+    <div style="font-size:10px;color:var(--dim);margin:8px 0 6px;">N8N WEBHOOK URL</div>
+    <input class="setup-input" id="settWebhook" type="text" placeholder="https://xxxx.ngrok-free.app/webhook/jarvis" autocomplete="off" />
+    <div style="font-size:10px;color:var(--dim);margin:8px 0 6px;">BRIDGE URL (mobile: Cloudflare / laptop: localhost:8766)</div>
+    <input class="setup-input" id="settBridge" type="text" placeholder="http://localhost:8766 or https://xxxx.trycloudflare.com" autocomplete="off" />
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="setup-btn" onclick="saveSettings()" style="flex:1;">💾 SAVE</button>
+      <button class="setup-btn" onclick="closeSettings()" style="flex:1;background:rgba(255,61,107,.1);border-color:var(--red);color:var(--red);">✕ CANCEL</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-logo">J·A·R·V·I·<span>S</span></div>
@@ -213,7 +231,10 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <span>UPTIME <b id="uptime">00:00:00</b></span>
     <span>NET <b style="color:var(--green)">ONLINE</b></span>
   </div>
-  <div style="font-size:9px;color:var(--dim);font-family:'Orbitron',sans-serif;">CORE V0.1</div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="font-size:9px;color:var(--dim);font-family:'Orbitron',sans-serif;">CORE V0.1</div>
+    <button onclick="openSettings()" style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,.1);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer;font-family:'Orbitron',sans-serif;">⚙ SETTINGS</button>
+  </div>
 </div>
 
 <!-- AGENT CARDS -->
@@ -862,6 +883,37 @@ function addAlert(cls, txt) {
   d.textContent = txt;
   list.insertBefore(d, list.firstChild);
   if (list.children.length > 8) list.removeChild(list.lastChild);
+}
+
+// ── SETTINGS ──
+function openSettings() {
+  const overlay = document.getElementById("settingsOverlay");
+  overlay.style.display = "flex";
+  // Pre-fill current values
+  document.getElementById("settGroqKey").value = localStorage.getItem("jarvis_groq_key") || "";
+  document.getElementById("settWebhook").value = localStorage.getItem("jarvis_webhook_url") || "";
+  document.getElementById("settBridge").value = localStorage.getItem("jarvis_bridge_url") || "";
+}
+
+function closeSettings() {
+  document.getElementById("settingsOverlay").style.display = "none";
+}
+
+function saveSettings() {
+  const key = document.getElementById("settGroqKey").value.trim();
+  const webhook = document.getElementById("settWebhook").value.trim();
+  const bridge = document.getElementById("settBridge").value.trim();
+
+  if (key) { localStorage.setItem("jarvis_groq_key", key); groqKey = key; }
+  if (webhook) localStorage.setItem("jarvis_webhook_url", webhook);
+  if (bridge) localStorage.setItem("jarvis_bridge_url", bridge);
+
+  closeSettings();
+  addMsg("sys", "[ SYS ] Settings saved! Reconnecting bridge...");
+  addAlert("ok", "Settings updated ✓");
+
+  // Reconnect WebSocket with new settings
+  connectWebSocket();
 }
 
 // ── TICKERS ──
