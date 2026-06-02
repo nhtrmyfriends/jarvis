@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>J.A.R.V.I.S — CORE V0.1</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+:root {
+  --cyan:#00e5ff; --cyan2:#00bcd4; --green:#00ff9d;
+  --red:#ff3d6b; --amber:#ffab00;
+  --dark:#020d14; --panel:#041520; --border:#0a3a52;
+  --text:#7ecfea; --dim:#2a5a72;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--dark);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,.012) 2px,rgba(0,229,255,.012) 4px);pointer-events:none;z-index:999;}
+
+/* API KEY SETUP */
+.setup-overlay{position:fixed;inset:0;background:rgba(2,13,20,.97);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.setup-box{background:var(--panel);border:1px solid var(--cyan);border-radius:12px;padding:28px 24px;max-width:400px;width:100%;}
+.setup-title{font-family:'Orbitron',sans-serif;font-size:16px;color:var(--cyan);letter-spacing:3px;margin-bottom:6px;}
+.setup-sub{font-size:11px;color:var(--dim);margin-bottom:18px;line-height:1.6;}
+.setup-steps{font-size:11px;color:var(--text);margin-bottom:16px;line-height:2;}
+.setup-steps a{color:var(--cyan);}
+.setup-input{width:100%;background:rgba(0,229,255,.05);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--cyan);font-family:'Share Tech Mono',monospace;outline:none;margin-bottom:10px;}
+.setup-input:focus{border-color:var(--cyan);}
+.setup-btn{width:100%;background:rgba(0,229,255,.15);border:1px solid var(--cyan);border-radius:6px;padding:11px;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:2px;cursor:pointer;transition:all .2s;}
+.setup-btn:hover{background:rgba(0,229,255,.25);}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:50;}
+.topbar-logo{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:var(--cyan);letter-spacing:4px;}
+.topbar-logo span{color:var(--green);}
+.topbar-stats{display:flex;gap:14px;font-size:10px;color:var(--dim);}
+.topbar-stats b{color:var(--cyan);}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px;animation:pdot 2s ease-in-out infinite;}
+@keyframes pdot{0%,100%{opacity:1;box-shadow:0 0 4px var(--green);}50%{opacity:.4;box-shadow:none;}}
+
+/* AGENT ROW */
+.agents-row{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--border);background:rgba(4,21,32,.9);scrollbar-width:none;}
+.agents-row::-webkit-scrollbar{display:none;}
+.agent-card{flex-shrink:0;width:108px;background:rgba(0,229,255,.04);border:1px solid var(--border);border-radius:6px;padding:7px 8px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.agent-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--dim);transition:background .3s;}
+.agent-card.active::before{background:var(--cyan);}
+.agent-card.active{border-color:var(--cyan);background:rgba(0,229,255,.09);box-shadow:0 0 12px rgba(0,229,255,.15);}
+.agent-card.busy::before{background:var(--amber);}
+.agent-card.busy{border-color:var(--amber);}
+.agent-card.thinking::before{background:var(--green);animation:blink-bar .5s infinite;}
+@keyframes blink-bar{0%,100%{opacity:1;}50%{opacity:.3;}}
+.agent-card.thinking{border-color:var(--green);}
+.agent-name{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;color:var(--cyan);letter-spacing:1px;margin-bottom:3px;}
+.agent-card.busy .agent-name{color:var(--amber);}
+.agent-card.thinking .agent-name{color:var(--green);}
+.agent-role{font-size:9px;color:var(--dim);line-height:1.3;margin-bottom:4px;}
+.agent-status{font-size:8px;display:flex;align-items:center;gap:4px;}
+.agent-status .dot{width:5px;height:5px;border-radius:50%;background:var(--green);}
+.agent-card.busy .dot{background:var(--amber);animation:pdot 1s infinite;}
+.agent-card.thinking .dot{background:var(--green);animation:pdot .4s infinite;}
+.agent-status span{color:var(--dim);}
+.agent-card.active .agent-status span,.agent-card.thinking .agent-status span{color:var(--green);}
+
+/* MAIN */
+.main{display:flex;height:calc(100vh - 132px);}
+
+/* SIDEBAR */
+.sidebar-left{width:128px;flex-shrink:0;border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;scrollbar-width:none;}
+.sidebar-left::-webkit-scrollbar{display:none;}
+.sidebar-section{font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:4px;}
+.metric-row{display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid rgba(10,58,82,.5);}
+.metric-row .val{color:var(--cyan);}
+.metric-row .val.up{color:var(--green);}
+.metric-row .val.dn{color:var(--red);}
+
+/* CENTRE */
+.centre{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:14px;overflow-y:auto;position:relative;}
+.brackets{position:absolute;inset:0;pointer-events:none;}
+.bracket{position:absolute;width:16px;height:16px;border-color:var(--cyan);border-style:solid;opacity:.5;}
+.bracket.tl{top:8px;left:8px;border-width:2px 0 0 2px;}
+.bracket.tr{top:8px;right:8px;border-width:2px 2px 0 0;}
+.bracket.bl{bottom:8px;left:8px;border-width:0 0 2px 2px;}
+.bracket.br{bottom:8px;right:8px;border-width:0 2px 2px 0;}
+
+.orb-label{font-family:'Orbitron',sans-serif;font-size:11px;color:var(--cyan);letter-spacing:3px;text-align:center;margin-bottom:6px;}
+.orb-wrap{position:relative;width:170px;height:170px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+.orb{width:86px;height:86px;border-radius:50%;background:radial-gradient(circle at 38% 33%,#a0f0ff 0%,#00e5ff 28%,#0088aa 62%,#003344 100%);box-shadow:0 0 30px rgba(0,229,255,.6),0 0 60px rgba(0,229,255,.3);animation:breathe 3s ease-in-out infinite;position:relative;z-index:2;cursor:pointer;transition:all .3s;}
+.orb.listening{box-shadow:0 0 50px rgba(0,255,157,.9),0 0 90px rgba(0,255,157,.5);background:radial-gradient(circle at 38% 33%,#a0ffe0 0%,#00ff9d 28%,#008844 62%,#002211 100%);}
+.orb.thinking{animation:breathe-fast .8s ease-in-out infinite;}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+@keyframes breathe-fast{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+.orb-ring{position:absolute;border-radius:50%;border:1px solid rgba(0,229,255,.2);animation:rspin linear infinite;}
+.orb-ring:nth-child(1){width:125px;height:125px;animation-duration:8s;}
+.orb-ring:nth-child(2){width:150px;height:150px;animation-duration:13s;animation-direction:reverse;border-style:dashed;}
+.orb-ring:nth-child(3){width:170px;height:170px;animation-duration:20s;border-color:rgba(0,229,255,.08);}
+@keyframes rspin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.orb-state{font-size:10px;color:var(--dim);letter-spacing:2px;text-align:center;}
+.orb-state.speaking{color:var(--green);animation:flicker .4s infinite;}
+.orb-state.listening{color:var(--green);}
+@keyframes flicker{0%,100%{opacity:1;}50%{opacity:.6;}}
+
+.wave{display:flex;align-items:center;gap:2px;height:22px;margin:5px 0;}
+.wave-bar{width:3px;border-radius:2px;background:var(--cyan);height:3px;animation:wanim .6s ease-in-out infinite alternate;}
+.wave-bar:nth-child(2){animation-delay:.1s;}
+.wave-bar:nth-child(3){animation-delay:.2s;}
+.wave-bar:nth-child(4){animation-delay:.05s;}
+.wave-bar:nth-child(5){animation-delay:.15s;}
+.wave-bar:nth-child(6){animation-delay:.25s;}
+.wave-bar:nth-child(7){animation-delay:.08s;}
+.wave-bar:nth-child(8){animation-delay:.18s;}
+@keyframes wanim{from{height:3px;opacity:.3;}to{height:20px;opacity:1;}}
+.wave.idle .wave-bar{animation:none;opacity:.2;}
+.wave.green .wave-bar{background:var(--green);}
+
+.orb-stats{display:flex;gap:16px;margin:6px 0 10px;}
+.orb-stat{text-align:center;}
+.orb-stat .n{font-size:13px;color:var(--cyan);font-family:'Orbitron',sans-serif;}
+.orb-stat .l{font-size:8px;color:var(--dim);letter-spacing:1px;margin-top:1px;}
+
+/* ACTIVE AGENT TAG */
+.active-tag{font-size:10px;color:var(--amber);letter-spacing:2px;margin-bottom:6px;min-height:14px;}
+
+/* CHAT */
+.chat-wrap{width:100%;max-width:460px;border:1px solid var(--border);border-radius:8px;background:rgba(4,21,32,.85);margin:0 14px 8px;display:flex;flex-direction:column;max-height:200px;min-height:120px;}
+.chat-log{flex:1;overflow-y:auto;padding:9px 11px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.chat-log::-webkit-scrollbar{width:3px;}
+.chat-log::-webkit-scrollbar-thumb{background:var(--border);}
+.chat-msg{font-size:11px;margin-bottom:7px;line-height:1.5;}
+.chat-msg .who{margin-right:6px;}
+.chat-msg.user .who{color:var(--amber);}
+.chat-msg.jarvis .who{color:var(--green);}
+.chat-msg.agent .who{color:var(--cyan);}
+.chat-msg.sys .who{color:var(--dim);}
+.chat-msg .txt{color:#9dc8d8;}
+.chat-msg.user .txt{color:#d4a96a;}
+
+.chat-input-row{display:flex;gap:6px;padding:7px 9px;border-top:1px solid var(--border);}
+.chat-input{flex:1;background:rgba(0,229,255,.05);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-size:11px;color:var(--cyan);font-family:'Share Tech Mono',monospace;outline:none;}
+.chat-input:focus{border-color:var(--cyan);}
+.chat-input::placeholder{color:var(--dim);}
+.ibtn{background:rgba(0,229,255,.08);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--dim);font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ibtn:hover{border-color:var(--cyan);color:var(--cyan);}
+.ibtn.active-mic{border-color:var(--green);color:var(--green);background:rgba(0,255,157,.1);animation:glow-btn 1s ease-in-out infinite;}
+@keyframes glow-btn{0%,100%{box-shadow:0 0 4px rgba(0,255,157,.4);}50%{box-shadow:0 0 12px rgba(0,255,157,.8);}}
+
+.action-btns{display:flex;gap:6px;margin:0 14px 4px;width:calc(100% - 28px);max-width:460px;}
+.act-btn{flex:1;padding:7px 4px;border-radius:5px;font-size:8px;font-family:'Orbitron',sans-serif;font-weight:700;letter-spacing:1px;cursor:pointer;border:1px solid;transition:all .2s;text-align:center;}
+.act-btn.c{color:var(--cyan);border-color:var(--cyan);background:rgba(0,229,255,.07);}
+.act-btn.g{color:var(--green);border-color:var(--green);background:rgba(0,255,157,.07);}
+.act-btn.r{color:var(--red);border-color:var(--red);background:rgba(255,61,107,.07);}
+.act-btn.a{color:var(--amber);border-color:var(--amber);background:rgba(255,171,0,.07);}
+.act-btn:hover{opacity:.75;transform:scale(.97);}
+
+/* RIGHT SIDEBAR */
+.sidebar-right{width:128px;flex-shrink:0;border-left:1px solid var(--border);padding:12px 8px;overflow-y:auto;scrollbar-width:none;}
+.sidebar-right::-webkit-scrollbar{display:none;}
+.alert-item{font-size:9px;line-height:1.4;padding:5px 6px;margin-bottom:5px;border-radius:4px;border-left:2px solid;}
+.alert-item.info{border-color:var(--cyan);background:rgba(0,229,255,.05);color:var(--text);}
+.alert-item.warn{border-color:var(--amber);background:rgba(255,171,0,.05);color:var(--amber);}
+.alert-item.ok{border-color:var(--green);background:rgba(0,255,157,.05);color:var(--green);}
+
+/* voice hint */
+.voice-hint{font-size:9px;color:var(--dim);text-align:center;margin-bottom:4px;letter-spacing:1px;}
+
+@media(max-width:600px){
+  .sidebar-left,.sidebar-right{display:none;}
+  .main{height:auto;}
+  .centre{padding-bottom:20px;}
+}
+</style>
+</head>
+<body>
+
+<!-- SETUP OVERLAY -->
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-box">
+    <div id="loginScreen">
+      <div class="setup-title">⚡ JARVIS LOGIN</div>
+      <div class="setup-sub">Enter your credentials to activate JARVIS.</div>
+      <input class="setup-input" id="loginUser" type="text" placeholder="Username" autocomplete="off" />
+      <input class="setup-input" id="loginPass" type="password" placeholder="Password" style="margin-top:8px;" autocomplete="off" />
+      <div id="loginError" style="font-size:11px;color:#ff3d6b;margin:6px 0;display:none;">❌ Invalid credentials. Try again.</div>
+      <button class="setup-btn" onclick="checkLogin()" style="margin-top:8px;">▶ LOGIN</button>
+    </div>
+    <div id="keysScreen" style="display:none;">
+      <div class="setup-title">⚡ FIRST TIME SETUP</div>
+      <div class="setup-sub">Enter your keys once — saved forever in this browser!</div>
+      <div style="font-size:10px;color:#2a5a72;margin-bottom:8px;">These are saved locally — never shared with anyone.</div>
+      <input class="setup-input" id="inputGroqKey" type="password" placeholder="Groq API Key (gsk_...)" autocomplete="off" />
+      <input class="setup-input" id="inputWebhook" type="text" placeholder="ngrok webhook URL (https://xxxx.ngrok-free.app/webhook/jarvis)" style="margin-top:8px;font-size:11px;" autocomplete="off" />
+      <div id="keysError" style="font-size:11px;color:#ff3d6b;margin:6px 0;display:none;">❌ Please enter Groq API key!</div>
+      <button class="setup-btn" onclick="saveKeys()" style="margin-top:8px;">💾 SAVE & ACTIVATE</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">J·A·R·V·I·<span>S</span></div>
+  <div class="topbar-stats">
+    <span><span class="status-dot"></span><b>15</b> AGENTS</span>
+    <span>UPTIME <b id="uptime">00:00:00</b></span>
+    <span>NET <b style="color:var(--green)">ONLINE</b></span>
+  </div>
+  <div style="font-size:9px;color:var(--dim);font-family:'Orbitron',sans-serif;">CORE V0.1</div>
+</div>
+
+<!-- AGENT CARDS -->
+<div class="agents-row" id="agentsRow"></div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div class="sidebar-left">
+    <div>
+      <div class="sidebar-section">// SYSTEM</div>
+      <div class="metric-row"><span>CPU</span><span class="val" id="cpu">34%</span></div>
+      <div class="metric-row"><span>RAM</span><span class="val" id="ram">61%</span></div>
+      <div class="metric-row"><span>TEMP</span><span class="val">41°C</span></div>
+    </div>
+    <div>
+      <div class="sidebar-section">// AGENTS</div>
+      <div class="metric-row"><span>ONLINE</span><span class="val up">12</span></div>
+      <div class="metric-row"><span>BUSY</span><span class="val" style="color:var(--amber)">2</span></div>
+      <div class="metric-row"><span>ERROR</span><span class="val dn">1</span></div>
+    </div>
+    <div>
+      <div class="sidebar-section">// TASKS</div>
+      <div class="metric-row"><span>ACTIVE</span><span class="val up" id="activeTasks">4</span></div>
+      <div class="metric-row"><span>QUEUED</span><span class="val">11</span></div>
+      <div class="metric-row"><span>DONE</span><span class="val up">238</span></div>
+    </div>
+    <div>
+      <div class="sidebar-section">// VOICE</div>
+      <div class="metric-row"><span>MODE</span><span class="val" id="voiceMode">OFF</span></div>
+      <div class="metric-row"><span>LANG</span><span class="val">EN-IN</span></div>
+    </div>
+  </div>
+
+  <div class="centre">
+    <div class="brackets">
+      <div class="bracket tl"></div><div class="bracket tr"></div>
+      <div class="bracket bl"></div><div class="bracket br"></div>
+    </div>
+
+    <div class="orb-label" id="orbLabel">J·A·R·V·I·S</div>
+    <div class="active-tag" id="activeTag"></div>
+
+    <div class="orb-wrap">
+      <div class="orb-ring"></div><div class="orb-ring"></div><div class="orb-ring"></div>
+      <div class="orb" id="orb" onclick="toggleVoice()" title="Click to speak"></div>
+    </div>
+
+    <div class="orb-state" id="orbState">CLICK ORB TO SPEAK</div>
+
+    <div class="wave idle" id="wave">
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+    </div>
+
+    <div class="orb-stats">
+      <div class="orb-stat"><div class="n">15</div><div class="l">AGENTS</div></div>
+      <div class="orb-stat"><div class="n" id="statLatency">38ms</div><div class="l">LATENCY</div></div>
+      <div class="orb-stat"><div class="n" id="statTokens">0</div><div class="l">TOKENS</div></div>
+      <div class="orb-stat"><div class="n" id="statCalls">0</div><div class="l">CALLS</div></div>
+    </div>
+
+    <div class="voice-hint">🎤 CLICK ORB TO SPEAK  ·  OR TYPE BELOW</div>
+
+    <div class="chat-wrap">
+      <div class="chat-log" id="chatLog">
+        <div class="chat-msg jarvis">
+          <span class="who">[ JARVIS ]</span>
+          <span class="txt">All 15 agents online. Click the orb or type to begin. I will route your request to the right agent automatically.</span>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatInput" placeholder="Type command here…" onkeydown="if(event.key==='Enter')sendMsg()" />
+        <button class="ibtn" onclick="sendMsg()">SEND</button>
+        <button class="ibtn" id="micBtn" onclick="toggleVoice()">🎤 MIC</button>
+      </div>
+    </div>
+
+    <div class="action-btns">
+      <div class="act-btn c" onclick="quickCmd('Give me a system status report of all agents')">STATUS</div>
+      <div class="act-btn g" onclick="quickCmd('Write a short motivational message for my team')">BRIEF</div>
+      <div class="act-btn a" onclick="quickCmd('What are 3 trending topics in AI today?')">RESEARCH</div>
+      <div class="act-btn r" onclick="quickCmd('Check for any security issues I should know about')">SCAN</div>
+    </div>
+  </div>
+
+  <div class="sidebar-right">
+    <div class="sidebar-section">// LOG</div>
+    <div id="alertsList">
+      <div class="alert-item ok">JARVIS online ✓</div>
+      <div class="alert-item info">All agents ready</div>
+      <div class="alert-item warn">RHODEY: error state</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── AGENTS ──
+const AGENTS = [
+  { name:"JARVIS",     role:"Orchestrator",    status:"active",
+    prompt:"You are JARVIS, an AI orchestrator. Route tasks, give system status, coordinate agents. Be concise and professional. Max 80 words." },
+  { name:"STRIM",      role:"Data Pipelines",  status:"active",
+    prompt:"You are STRIM, an AI data pipeline agent. Help with data processing, ETL tasks, database queries. Be technical and concise. Max 80 words." },
+  { name:"THE VISION", role:"Market Intel",    status:"active",
+    prompt:"You are THE VISION, a market intelligence agent. Analyze market trends, stocks, business data. Be sharp and data-driven. Max 80 words." },
+  { name:"ULTRON",     role:"Security",        status:"busy",
+    prompt:"You are ULTRON, an AI security agent. Handle security scans, threat detection, vulnerability checks. Be precise. Max 80 words." },
+  { name:"FRIDAY",     role:"Scheduling",      status:"active",
+    prompt:"You are FRIDAY, an AI scheduling agent. Manage calendars, reminders, meetings, deadlines. Be organized and helpful. Max 80 words." },
+  { name:"VERONICA",   role:"Content+Comms",   status:"busy",
+    prompt:"You are VERONICA, a content and communications agent. Write emails, social posts, reports, scripts. Be creative and clear. Max 80 words." },
+  { name:"ATHENA",     role:"Research",        status:"active",
+    prompt:"You are ATHENA, a deep research agent. Find information, summarise articles, answer complex questions. Be thorough. Max 80 words." },
+  { name:"STEVE",      role:"Diagnostics",     status:"active",
+    prompt:"You are STEVE, a diagnostics agent. Monitor system health, debug issues, run checks. Be analytical. Max 80 words." },
+  { name:"HERALD",     role:"Notifications",   status:"active",
+    prompt:"You are HERALD, a notifications agent. Draft alerts, messages, WhatsApp/email content. Be clear and brief. Max 80 words." },
+  { name:"WANDA",      role:"Creative",        status:"active",
+    prompt:"You are WANDA, a creative agent. Help with design ideas, creative writing, brainstorming. Be imaginative. Max 80 words." },
+  { name:"PEPPER",     role:"CRM+Relations",   status:"active",
+    prompt:"You are PEPPER, a CRM and relations agent. Manage contacts, customer responses, relationship tasks. Be professional. Max 80 words." },
+  { name:"RHODEY",     role:"DevOps",          status:"error",
+    prompt:"You are RHODEY, a DevOps agent. Handle deployments, CI/CD, server ops. Be technical. Max 80 words." },
+  { name:"FURY",       role:"Risk Analysis",   status:"active",
+    prompt:"You are FURY, a risk analysis agent. Identify risks, assess threats, give strategic advice. Be direct. Max 80 words." },
+  { name:"BANNER",     role:"Data Science",    status:"active",
+    prompt:"You are BANNER, a data science agent. Run analysis, statistics, ML insights. Be precise. Max 80 words." },
+  { name:"THOR",       role:"Cloud Infra",     status:"active",
+    prompt:"You are THOR, a cloud infrastructure agent. Manage cloud resources, scaling, costs. Be technical. Max 80 words." },
+];
+
+// routing keywords → agent index
+const ROUTES = [
+  { keys:["security","threat","hack","scan","vulnerability"], idx:3  },
+  { keys:["schedule","calendar","meeting","remind","deadline"], idx:4 },
+  { keys:["write","email","post","content","tweet","message","draft"], idx:5 },
+  { keys:["research","find","search","what is","who is","trend"], idx:6 },
+  { keys:["diagnose","debug","health","system","check","monitor"], idx:7 },
+  { keys:["notify","alert","whatsapp","notification","send"], idx:8  },
+  { keys:["creative","idea","design","story","brainstorm"], idx:9    },
+  { keys:["crm","customer","contact","client","relation"], idx:10    },
+  { keys:["deploy","devops","server","pipeline","ci","cd"], idx:11   },
+  { keys:["risk","danger","threat","assess","strategy"], idx:12      },
+  { keys:["data","analytics","analysis","model","ml","ai"], idx:13   },
+  { keys:["cloud","aws","gcp","azure","scale","infra"], idx:14       },
+  { keys:["market","stock","crypto","price","finance"], idx:2        },
+  { keys:["data pipeline","etl","database","query"], idx:1           },
+];
+
+let groqKey = "";
+let callCount = 0;
+let tokenCount = 0;
+let currentAgent = 0;
+let isListening = false;
+let isSpeaking = false;
+let recognition = null;
+let startTime = Date.now();
+
+// ── BUILD AGENT CARDS ──
+const row = document.getElementById("agentsRow");
+AGENTS.forEach((a, i) => {
+  const d = document.createElement("div");
+  d.className = "agent-card " + a.status + (i===0?" active":"");
+  d.id = "ac-" + i;
+  d.innerHTML = `<div class="agent-name">${a.name}</div>
+    <div class="agent-role">${a.role}</div>
+    <div class="agent-status"><span class="dot"></span><span>${
+      a.status==="active"?"ONLINE":a.status==="busy"?"BUSY":"ERROR"
+    }</span></div>`;
+  d.onclick = () => { selectAgent(i); addMsg("sys", `Switched to ${a.name} — ${a.role}`); };
+  row.appendChild(d);
+});
+
+function selectAgent(i) {
+  document.querySelectorAll(".agent-card").forEach(c=>c.classList.remove("active"));
+  document.getElementById("ac-"+i)?.classList.add("active");
+  currentAgent = i;
+  document.getElementById("orbLabel").textContent = AGENTS[i].name;
+  document.getElementById("activeTag").textContent = "▸ " + AGENTS[i].role.toUpperCase();
+}
+
+// ── ACTIVATE ──
+// ── CREDENTIALS (safe — no API keys here) ──
+const VALID_USER = "varun";
+const VALID_PASS = "jarvis123";
+
+function checkLogin() {
+  const user = document.getElementById("loginUser").value.trim();
+  const pass = document.getElementById("loginPass").value.trim();
+  const errEl = document.getElementById("loginError");
+
+  if (user !== VALID_USER || pass !== VALID_PASS) {
+    errEl.style.display = "block";
+    document.getElementById("loginPass").value = "";
+    return;
+  }
+
+  errEl.style.display = "none";
+
+  // Check if keys already saved in localStorage
+  const savedKey = localStorage.getItem("jarvis_groq_key");
+  const savedWebhook = localStorage.getItem("jarvis_webhook_url");
+
+  if (savedKey) {
+    // Keys already saved — activate directly!
+    activateJarvis(savedKey, savedWebhook || "");
+  } else {
+    // First time — show keys screen
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("keysScreen").style.display = "block";
+  }
+}
+
+function saveKeys() {
+  const key = document.getElementById("inputGroqKey").value.trim();
+  const webhook = document.getElementById("inputWebhook").value.trim();
+  const errEl = document.getElementById("keysError");
+
+  if (!key || key.length < 10) {
+    errEl.style.display = "block";
+    return;
+  }
+
+  // Save to localStorage forever
+  localStorage.setItem("jarvis_groq_key", key);
+  localStorage.setItem("jarvis_webhook_url", webhook);
+
+  activateJarvis(key, webhook);
+}
+
+function activateJarvis(key, webhook) {
+  groqKey = key;
+  window._webhookUrl = webhook;
+  document.getElementById("setupOverlay").style.display = "none";
+  addMsg("jarvis", "Welcome back, VARUN. JARVIS online. All 15 agents activated. Click the orb or type a command.");
+  addAlert("ok", "JARVIS activated ✓");
+  setInterval(tickUptime, 1000);
+  setInterval(tickStats, 3000);
+  setInterval(tickAlerts, 8000);
+}
+
+// ── ROUTE TO AGENT ──
+function routeToAgent(text) {
+  const lower = text.toLowerCase();
+  for (const r of ROUTES) {
+    if (r.keys.some(k => lower.includes(k))) return r.idx;
+  }
+  return 0; // default JARVIS
+}
+
+// ── CALL GROQ ──
+async function callGroq(userText) {
+  const agentIdx = routeToAgent(userText);
+  const agent = AGENTS[agentIdx];
+
+  // show which agent is thinking
+  document.querySelectorAll(".agent-card").forEach(c=>c.classList.remove("active","thinking"));
+  document.getElementById("ac-"+agentIdx)?.classList.add("thinking");
+  selectAgent(agentIdx);
+  setOrbState("ROUTING TO " + agent.name + "...", "thinking");
+  addAlert("info", agent.name + " processing…");
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+groqKey },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role:"system", content: agent.prompt },
+          { role:"user", content: userText }
+        ],
+        max_tokens: 200,
+        temperature: 0.7
+      })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({}));
+      throw new Error(e?.error?.message || "API error "+res.status);
+    }
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || "(no response)";
+    const tokens = data.usage?.total_tokens || 0;
+
+    // update stats
+    callCount++;
+    tokenCount += tokens;
+    document.getElementById("statCalls").textContent = callCount;
+    document.getElementById("statTokens").textContent = tokenCount > 999 ? (tokenCount/1000).toFixed(1)+"K" : tokenCount;
+
+    // restore card state
+    document.getElementById("ac-"+agentIdx)?.classList.remove("thinking");
+    document.getElementById("ac-"+agentIdx)?.classList.add("active");
+
+    return { reply, agentName: agent.name };
+
+  } catch(e) {
+    document.getElementById("ac-"+agentIdx)?.classList.remove("thinking");
+    throw e;
+  }
+}
+
+// ── SEND MESSAGE ──
+async function sendMsg() {
+  if (!groqKey) { alert("Please enter your Groq API key first."); return; }
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text || isSpeaking) return;
+  input.value = "";
+  processInput(text);
+}
+
+async function quickCmd(text) {
+  if (!groqKey) { alert("Please enter your Groq API key first."); return; }
+  processInput(text);
+}
+
+async function processInput(text) {
+  addMsg("user", text);
+  setWave("active", false);
+  setOrbState("ANALYZING...", "thinking");
+  document.getElementById("orb").classList.add("thinking");
+
+  // ── Send to n8n webhook (triggers WhatsApp via HERALD) ──
+  const webhookUrl = window._webhookUrl || localStorage.getItem("jarvis_webhook_url") || "";
+  if (webhookUrl) {
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: text })
+    })
+    .then(() => addAlert("ok", "HERALD: WhatsApp triggered ✓"))
+    .catch(() => addAlert("warn", "HERALD: webhook offline"));
+  }
+
+  try {
+    const { reply, agentName } = await callGroq(text);
+    addMsg("agent", reply, agentName);
+    setOrbState("SPEAKING", "speaking");
+    document.getElementById("orb").classList.remove("thinking");
+    setWave("active", true);
+    speakText(reply, agentName);
+    addAlert("ok", agentName + " responded ✓");
+  } catch(e) {
+    addMsg("sys", "❌ " + e.message);
+    setOrbState("ERROR", "");
+    document.getElementById("orb").classList.remove("thinking");
+    setWave("idle", false);
+  }
+}
+
+// ── VOICE INPUT ──
+function toggleVoice() {
+  if (!groqKey) { alert("Please activate JARVIS with your Groq key first."); return; }
+  if (isListening) { stopListening(); return; }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    addMsg("sys", "⚠ Voice not supported in this browser. Use Chrome or Edge.");
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-IN";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById("micBtn").classList.add("active-mic");
+    document.getElementById("micBtn").textContent = "🔴 STOP";
+    document.getElementById("orb").classList.add("listening");
+    document.getElementById("voiceMode").textContent = "ON";
+    document.getElementById("voiceMode").style.color = "var(--green)";
+    setOrbState("LISTENING...", "listening");
+    setWave("active", true);
+    addMsg("sys", "🎤 Listening… speak now");
+  };
+
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    addMsg("user", text + " 🎤");
+    stopListening();
+    processInput(text);
+  };
+
+  recognition.onerror = (e) => {
+    addMsg("sys", "⚠ Voice error: " + e.error + ". Try again.");
+    stopListening();
+  };
+
+  recognition.onend = () => { if (isListening) stopListening(); };
+
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  recognition?.stop();
+  document.getElementById("micBtn").classList.remove("active-mic");
+  document.getElementById("micBtn").textContent = "🎤 MIC";
+  document.getElementById("orb").classList.remove("listening");
+  document.getElementById("voiceMode").textContent = "OFF";
+  document.getElementById("voiceMode").style.color = "";
+  setOrbState("STANDBY", "");
+  setWave("idle", false);
+}
+
+// ── VOICE OUTPUT (speak response) ──
+function speakText(text, agentName) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  isSpeaking = true;
+
+  const clean = text.replace(/[*_#`]/g, "").slice(0, 300);
+  const utt = new SpeechSynthesisUtterance(clean);
+  utt.lang = "en-IN";
+  utt.rate = 1.0;
+  utt.pitch = 0.85;
+  utt.volume = 1;
+
+  // try to pick a good voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => v.lang.startsWith("en") && v.name.toLowerCase().includes("male"))
+    || voices.find(v => v.lang.startsWith("en"))
+    || null;
+  if (preferred) utt.voice = preferred;
+
+  utt.onend = () => {
+    isSpeaking = false;
+    setOrbState("STANDBY", "");
+    setWave("idle", false);
+  };
+
+  window.speechSynthesis.speak(utt);
+}
+
+// ── UI HELPERS ──
+function addMsg(type, text, who) {
+  const log = document.getElementById("chatLog");
+  const d = document.createElement("div");
+  const label = type==="user" ? "[ YOU ]"
+    : type==="agent" ? `[ ${who||"AGENT"} ]`
+    : type==="jarvis" ? "[ JARVIS ]"
+    : "[ SYS ]";
+  d.className = "chat-msg " + (type==="user"?"user":type==="agent"?"agent":type==="jarvis"?"jarvis":"sys");
+  d.innerHTML = `<span class="who">${label}</span><span class="txt">${text}</span>`;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setOrbState(txt, cls) {
+  const el = document.getElementById("orbState");
+  el.className = "orb-state " + (cls||"");
+  el.textContent = txt;
+}
+
+function setWave(state, green) {
+  const w = document.getElementById("wave");
+  w.className = "wave" + (state==="idle"?" idle":"") + (green?" green":"");
+}
+
+function addAlert(cls, txt) {
+  const list = document.getElementById("alertsList");
+  const d = document.createElement("div");
+  d.className = "alert-item " + cls;
+  d.textContent = txt;
+  list.insertBefore(d, list.firstChild);
+  if (list.children.length > 8) list.removeChild(list.lastChild);
+}
+
+// ── TICKERS ──
+let uptimeSecs = 0;
+function tickUptime() {
+  uptimeSecs++;
+  const h = String(Math.floor(uptimeSecs/3600)).padStart(2,"0");
+  const m = String(Math.floor((uptimeSecs%3600)/60)).padStart(2,"0");
+  const s = String(uptimeSecs%60).padStart(2,"0");
+  document.getElementById("uptime").textContent = h+":"+m+":"+s;
+}
+
+function tickStats() {
+  document.getElementById("cpu").textContent = (28+Math.floor(Math.random()*22))+"%";
+  document.getElementById("ram").textContent = (52+Math.floor(Math.random()*18))+"%";
+  document.getElementById("statLatency").textContent = (25+Math.floor(Math.random()*22))+"ms";
+}
+
+const alertPool = [
+  {cls:"ok",  txt:"STRIM sync complete"},
+  {cls:"warn",txt:"BANNER queue growing"},
+  {cls:"info",txt:"FRIDAY: meeting in 1h"},
+  {cls:"ok",  txt:"THOR: scaling up"},
+  {cls:"warn",txt:"VERONICA rate limit"},
+  {cls:"ok",  txt:"ATHENA report ready"},
+  {cls:"info",txt:"FURY risk scan done"},
+];
+let alertIdx = 0;
+function tickAlerts() {
+  const a = alertPool[alertIdx++ % alertPool.length];
+  addAlert(a.cls, a.txt);
+}
+</script>
+</body>
+</html>
